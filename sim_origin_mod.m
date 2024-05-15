@@ -1,25 +1,15 @@
 % sudo /usr/local/MATLAB/R2018b/bin/matlab
-% % mem max= 89G-48G = 41G 434s /2proc default acc
-%% (996-47) / 41 = 22 mem constrain
-%% (10h*60) / (8min*5sample) = 15 time constrain
 
-%% scale 0.2    time 50     sample 2    = 563s 
-%% scale 0.1    time 50     sample 2    = 593s
-%% scale 0.1    time 50     sample 1    = 297s
-
-%% scale 0.6    time 300    sample 10   = 600s*6*6*5 = 30h
-%% scale 0.4    time 200    sample 5   = 600s*4*4*2.5 = 400min / 7h
-
-%% scale 0.2    time 400     sample 5    = 10min*2*8*5 
+% Mem 74.17G 438s
 function main  
     clc; clear all;
-    parallel = true;
+    parallel = false;
     if parallel
         % parallel start
         delete(gcp('nocreate'));
         Num_core = feature('numcores');
         disp(['Num_core', num2str(Num_core)]);
-        parpool(floor(5), 'IdleTimeout', 8*60)
+        parpool(floor(Num_core-2), 'IdleTimeout', 8*60)
     end
 
     tic
@@ -37,10 +27,10 @@ function main
     b1_prime = 2500;  
 
     % 环状网络
-    scale = 0.2
-    time_range = floor(400);
-    sample_num = floor(5);
-    seed_num = 10000;
+    scale = 0.1;
+    time_range = floor(500);
+    sample_num = floor(10);
+    seed_num = 1;
     P = floor(30*scale);  
     N = floor(100*scale);  
     M = floor(20*scale); 
@@ -59,13 +49,13 @@ function main
             % 初始状态    
             % x1，1个变量, iL，N个变量, vCi，N个变量, xij，N*N个变量
             init_state = -1 + 2*rand(1 + N + N + N*N, 1); % 随机初始化状态  
-            init_state_name = sprintf('init_state_05_14/init_state_seed_%d.mat', seed);
+            init_state_name = sprintf('init_state/init_state_seed_mod_%d.mat', seed);
             % save(init_state_name, '-struct', 'tmp');  
             matObj = matfile(init_state_name, 'Writable', true);  
             matObj.init_state = init_state;
 
             % V_D 变量范围  
-            V_D_range = linspace(-3.0, -2.0, sample_num);  
+            V_D_range = linspace(-2.9, -2.1, sample_num);  
             
             % 存储SI结果  
             SI_results = zeros(length(V_D_range), 1);  
@@ -105,20 +95,19 @@ function main
         fclose(fid);  
 
     else
-        for seed = 13140:(13140+seed_num)
+        for seed = 1244:(1244+seed_num)
             rng(seed);
 
             % 初始状态    
             % x1，1个变量, iL，N个变量, vCi，N个变量, xij，N*N个变量
-            init_state = -1 + 2*rand(1 + N + N + N*N, 1); % 随机初始化状态  
-            init_state_name = sprintf('init_state_05_13/init_state_seed_%d.mat', seed);
-            save(init_state_name, 'init_state');
-
-            % data_load = load("init_state_seed_1249.mat");
-            % init_state = data_load.init_state;
+            % init_state = -1 + 2*rand(1 + N + N + N*N, 1); % 随机初始化状态  
+            % init_state_name = sprintf('init_state_seed_%d.mat', seed);
+            % save(init_state_name, 'init_state');
+            data_load = load("init_state_seed_1249.mat");
+            init_state = data_load.init_state;
 
             % V_D 变量范围  
-            V_D_range = linspace(-3.0, -2.0, sample_num);  
+            V_D_range = linspace(-2.9, -2.1, sample_num);  
             
             % 存储SI结果  
             SI_results = zeros(length(V_D_range), 1);  
@@ -128,6 +117,7 @@ function main
                 V_D = V_D_range(k);  
                 
                 % ODE求解 
+                 
                 [T, Y] = ode45(@(t, y) odefunc(t, y, tau, L, C, G0, V_D, d2, d0, a0_prime, a1, b1_prime, P, N), [0, time_range], init_state);  
                 
                 % 计算SI  
@@ -136,9 +126,6 @@ function main
                 % early stop
                 if k == 1 && SI_results(1) == 0
                     break
-                end
-                if k == length(V_D_range) 
-                    display("###")
                 end
             end  
 
@@ -188,18 +175,17 @@ function dydt = odefunc(t, y, tau, L, C, G0, V_D, d2, d0, a0_prime, a1, b1_prime
         sumTerm = 0;  
         % 遍历所有邻居节点j  
         for j = 1:N  
-            if i ~= j % 排除自身  
+            dist = min(abs(i-j), N-abs(i-j)); % mod
+            % dist = abs(i-j); % diag
+            if i ~= j && dist <= P % 排除自身 % 只考虑P邻域内的节点
                 % 确保xij_index在合理范围内  
                 xij_index = (i-1)*N + j;  
                 % 计算阻抗RB  
                 RB = (d2*xij(xij_index)^2 + d0);  
-                % 只考虑P邻域内的节点  
-                if abs(i-j) <= P  
-                    % 累加邻居节点影响  
-                    sumTerm = sumTerm + (vCi(j) - vCi(i)) / (2*P*RB); 
-                    % 计算dxijdt(xij_index)的值，考虑节点i和j间的耦合  
-                    dxijdt(xij_index) = a1 * (a0_prime + xij(xij_index) + b1_prime * (vCi(j) - vCi(i)) / RB); 
-                end  
+                % 累加邻居节点影响  
+                sumTerm = sumTerm + (vCi(j) - vCi(i)) / (2*P*RB);  
+                % 计算dxijdt(xij_index)的值，考虑节点i和j间的耦合  
+                dxijdt(xij_index) = a1 * (a0_prime + xij(xij_index) + b1_prime * (vCi(j) - vCi(i)) / RB); 
             end  
         end  
         % 计算dvCidt(i)的值，考虑iL、G0、x1、vCi和邻居节点的影响  

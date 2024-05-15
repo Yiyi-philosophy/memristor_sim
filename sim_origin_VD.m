@@ -14,7 +14,7 @@ function main
         delete(gcp('nocreate'));
         Num_core = feature('numcores');
         disp(['Num_core: ', num2str(Num_core)]);
-        parpool(floor(Num_core-2), 'IdleTimeout', 2*480)
+        parpool(floor(10), 'IdleTimeout', 2*480)
     end
 
     % name = "sim"
@@ -32,31 +32,36 @@ function main
     b1_prime = 2500;  
 
     % 环状网络
-    scale = 0.1
-    time_range = floor(50);
-    V_D_sample = floor(100);
+    scale = 0.2
+    time_range = floor(400);
+    V_D_sample = floor(20);
     P = floor(30*scale);  
     N = floor(100*scale);  
     M = floor(20*scale); 
     delta = 0.1;  
     
-    % out name
-    filename = strcat('neuron_sim_1_diag', ...  
-        '-scale_', num2str(scale), ...  
-        '-time_range_', num2str(time_range), ...  
-        '-V_D_sample_', num2str(V_D_sample), ...  
-        '.png');
+   
 
     % 初始状态    
     % x1，1个变量
     % iL，N个变量
     % vCi，N个变量
     % xij，N*N个变量
-    % rng(42); % 固定随机种子
-    init_state = -1 + 2*rand(1 + N + N + N*N, 1); % 随机初始化状态  
-    data_load = load("init_state_seed_1249.mat");
+    % rng(1244); % 固定随机种子
+
+    % init_state = -1 + 2*rand(1 + N + N + N*N, 1); % 随机初始化状态  
+    % data_load = load("init_state_seed_1249.mat");
+    data_load = load("init_state_05_14/init_state_seed_2379.mat")
+    % 1251 2379 1519 
     init_state = data_load.init_state;
 
+    % out name
+    filename = strcat('neuron_sim_1_diag', ...
+    '-seed_', num2str(2379), ...  
+    '-scale_', num2str(scale), ...  
+    '-time_range_', num2str(time_range), ...  
+    '-V_D_sample_', num2str(V_D_sample), ...  
+    '.png');
     % V_D 变量范围  
     V_D_range = linspace(-2.9, -2.1, V_D_sample);  
       
